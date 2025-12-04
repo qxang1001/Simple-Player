@@ -6,9 +6,9 @@ gstreamer 1.16.3
 Ubuntu 20.04 
 
 #Run after download
-qmake 
-make
-./myplayer
+#qmake 
+#make
+#./myplayer
 and then choose a .mp4 or other video file.
 
 #

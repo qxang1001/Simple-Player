@@ -8,11 +8,13 @@ QT 5.12.8
 
 ##Run after download
 
-###How to make?
+### How to make?
+
 qmake 
 
 make
-###How to run?
+### How to run?
+
 ./myplayer
 
 and then choose a .mp4 or other video file.

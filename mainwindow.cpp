@@ -9,6 +9,14 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle("Qt GStreamer Player");
     resize(800, 600);
 
+    this->setMouseTracking(true);
+    ui->videoWidget->setMouseTracking(true);
+
+    controlPanelTimer = new QTimer(this);
+    controlPanelTimer->setSingleShot(false);
+    controlPanelTimer->setInterval(3000); // 3秒无操作隐藏
+    connect(controlPanelTimer, &QTimer::timeout, this, &MainWindow::hideControlPanel);
+
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
     QString appStyle = R"(
@@ -131,7 +139,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     mainLayout->addWidget(ui->videoWidget, 1); // 拉伸因子为1，占据大部分空间
 
-    QWidget *controlPanel = new QWidget();
+    controlPanel = new QWidget();
+    controlPanel->setMouseTracking(true);
     controlPanel->setMaximumHeight(100); // 限制控制面板高度
     controlPanel->setStyleSheet("background-color: #2b2b2b; border-radius: 5px;");
 
@@ -148,6 +157,7 @@ MainWindow::MainWindow(QWidget *parent)
     leftControls->addWidget(ui->Filebutton);
     leftControls->addWidget(ui->Playbutton);
     leftControls->addWidget(ui->Pausebutton);
+    leftControls->addWidget(ui->fullScreenBtn);
 
     QHBoxLayout *centerControls = new QHBoxLayout();
     centerControls->addStretch(); // 添加弹性空间
@@ -176,6 +186,8 @@ MainWindow::MainWindow(QWidget *parent)
     centralWidget->setLayout(mainLayout);
     setCentralWidget(centralWidget);
 
+    centralWidget->installEventFilter(this);
+
     ui->Playbutton->setEnabled(false);
     ui->Pausebutton->setEnabled(false);
     ui->currenttime->setText("00:00:00");
@@ -191,7 +203,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->speedComboBox->addItem("2.0x", 2.0);
     ui->speedComboBox->setCurrentText("1.0x");
 
+    ui->videoWidget->installEventFilter(this);
     player = new Player(ui->videoWidget,this);
+    isFullScreen = false;
 
     connect(this, &MainWindow::fileSelected, player, &Player::setUri);
     connect(this, &MainWindow::playRequested, player, &Player::play);
@@ -216,6 +230,13 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(player, &Player::stateChanged, this, &MainWindow::updateUiState);
     connect(player, &Player::error, this, &MainWindow::showError);
+
+    connect(this, &MainWindow::mouseMoved, [this]() {
+        if (isFullScreen) {
+            controlPanel->show();
+            controlPanelTimer->start(); // 重启隐藏定时器
+        }
+    });
 }
 
 MainWindow::~MainWindow()
@@ -243,6 +264,12 @@ void MainWindow::on_Pausebutton_clicked()
 {
     emit pauseRequested();
 }
+
+void MainWindow::on_fullScreenBtn_clicked()
+{
+    toggleFullScreen();
+}
+
 
 void MainWindow::updateDurationLabel(qint64 duration)
 {
@@ -277,16 +304,70 @@ void MainWindow::updateVolumeLabel(int level)
     ui->volumeLabel->setText(QString("Volume: %1%").arg(level));
 }
 
+void MainWindow::toggleFullScreen()
+{
+    if (!isFullScreen) {
+        this->setWindowState(Qt::WindowFullScreen);
+        //this->setStyleSheet(this->styleSheet() + "QMainWindow { border: none; }");
+        controlPanelTimer->start();
+        isFullScreen = true;
+    } else {
+        // 退出全屏
+        this->setWindowState(Qt::WindowNoState);
+        controlPanelTimer->stop();
+        //controlPanel->setStyleSheet("background-color: #2b2b2b; border-radius: 5px;"); // 恢复原有样式
+        isFullScreen = false;
+        controlPanel->show(); // 退出全屏后显示控制面板
+    }
+}
+
+void MainWindow::hideControlPanel()
+{
+    if (isFullScreen) {
+        controlPanel->hide();
+    }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape && isFullScreen) {
+        toggleFullScreen(); // 退出全屏
+    }
+    QMainWindow::keyPressEvent(event);
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (event->type() == QEvent::MouseMove && isFullScreen) {
+        //qDebug() << "mouseMoved:";
+        emit mouseMoved();
+    }
+    else if (event->type() == QEvent::MouseButtonDblClick) {
+        toggleFullScreen();
+        return true;
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event); // 先调用基类实现
+
+    // 确保代理窗口的大小始终与 videoWidget 保持一致
+    if (ui->videoWidget && ui->videoWidget->findChild<QWidget*>("videoOverlay")) {
+        QWidget *videoOverlay = ui->videoWidget->findChild<QWidget*>("videoOverlay");
+        videoOverlay->setGeometry(0, 0, ui->videoWidget->width(), ui->videoWidget->height());
+    }
+}
+
 
 void MainWindow::updateUiState(const QString &state)
 {
     if (state == "PLAYING") {
-        //player->play();
         ui->Playbutton->setEnabled(false);
         ui->Pausebutton->setEnabled(true);
     }
     else if (state == "PAUSED") {
-        //player->pause();
         ui->Playbutton->setEnabled(true);
         ui->Pausebutton->setEnabled(false);
     }

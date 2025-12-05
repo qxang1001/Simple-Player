@@ -33,6 +33,7 @@ Player::Player(QWidget *videoWidget,QObject *parent)
     GstVideoOverlay *overlay = GST_VIDEO_OVERLAY(m_videosink);
     if (overlay) {
         gst_video_overlay_set_window_handle(overlay, m_videoWidget->winId());
+        qDebug() << "GStreamer window handle set to:" << m_videoWidget;
     }
 
     m_timer = new QTimer(this);
@@ -245,9 +246,10 @@ void Player::onBusMessage(GstMessage *message)
         g_free(debug_info);
         break;
     }
-    case GST_MESSAGE_EOS:
+    case GST_MESSAGE_EOS:{
         qDebug() << "End-Of-Stream reached.";
         break;
+    }
     default:
         break;
     }

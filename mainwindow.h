@@ -12,6 +12,9 @@
 #include <QStyle>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QEvent>
 #include <QTime>
 
 #include "player.h"
@@ -28,16 +31,25 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+
 signals:
     // Signals to be emitted by UI elements and caught by the Controller
     void playRequested();
     void pauseRequested();
     void fileSelected(const QString &filePath);
 
+    void mouseMoved();
+
 private slots:
     void on_Filebutton_clicked();
     void on_Playbutton_clicked();
     void on_Pausebutton_clicked();
+    void on_fullScreenBtn_clicked();
 
     void updateProgress(qint64 position);
     void updateDurationLabel(qint64 duration);
@@ -47,8 +59,15 @@ private slots:
     void updateUiState(const QString &state);
     void showError(const QString &message);
 
+    void toggleFullScreen();
+    void hideControlPanel();
+
 private:
     Ui::MainWindow *ui;
     Player* player;
+
+    bool isFullScreen;
+    QWidget *controlPanel;
+    QTimer *controlPanelTimer;
 };
 #endif // MAINWINDOW_H
